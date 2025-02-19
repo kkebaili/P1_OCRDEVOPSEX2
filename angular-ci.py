@@ -1,7 +1,7 @@
 import subprocess
+import sys
 import argparse
 import os
-import sys
 
 # Fonction pour exécuter une commande et vérifier les erreurs
 def run_command(command):
@@ -40,18 +40,26 @@ def pack():
     run_command(["tar", "-cvf", tar_file, dist_folder])
 
 # Fonction pour publier l'application sur GitLab
-def publish(token, project_id, scope):
-    print(f"Publication du paquet dans GitLab avec le scope {scope}...")
-    
-    # Modifier le fichier .npmrc pour inclure le token et le scope
-    npmrc_content = f"@{scope}:registry=https://gitlab.com/api/v4/projects/{project_id}/packages/npm/\n"
+def publish_to_gitlab(token, project_id, scope):
+    print(f"Publication du paquet dans GitLab avec le project_id {project_id}...")
+
+    # Si aucun scope n'est fourni, on l'ignore dans la configuration du .npmrc
+    npmrc_content = f"registry=https://gitlab.com/api/v4/projects/{project_id}/packages/npm/\n"
+    if scope:
+        npmrc_content += f"@{scope}:registry=https://gitlab.com/api/v4/projects/{project_id}/packages/npm/\n"
     npmrc_content += f"//gitlab.com/api/v4/projects/{project_id}/packages/npm/:_authToken={token}\n"
     
     # Sauvegarder le contenu dans un fichier .npmrc
     with open(".npmrc", "w") as f:
         f.write(npmrc_content)
     
-    run_command(["npm", "publish"])
+    # Exécuter la commande npm publish pour publier le paquet
+    try:
+        subprocess.check_call(["npm", "publish"])
+        print("Publication réussie dans GitLab Package Registry.")
+    except subprocess.CalledProcessError as e:
+        print(f"Erreur lors de la publication : {e}")
+        sys.exit(1)
 
 # Fonction principale pour gérer les arguments de la ligne de commande
 def main():
@@ -71,7 +79,7 @@ def main():
     publish_parser = subparsers.add_parser("publish", help="Publier l'application sur GitLab")
     publish_parser.add_argument("--token", required=True, help="Token de déploiement GitLab")
     publish_parser.add_argument("--project-id", required=True, help="ID du projet GitLab")
-    publish_parser.add_argument("--scope", required=True, help="Scope npm pour l'application")
+    publish_parser.add_argument("--scope", help="Scope npm pour l'application", default="")
 
     args = parser.parse_args()
 
@@ -82,7 +90,7 @@ def main():
     elif args.command == "pack":
         pack()
     elif args.command == "publish":
-        publish(args.token, args.project_id, args.scope)
+        publish_to_gitlab(args.token, args.project_id, args.scope)
     else:
         parser.print_help()
 

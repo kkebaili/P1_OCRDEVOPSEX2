@@ -1,0 +1,73 @@
+image: hectorlachambre/oc-expert-devops-angular-python
+
+stages:
+- build
+- test
+- package
+- publish
+
+cache:
+  paths:
+  - node_modules/
+
+before_script:
+# Mettre à jour Node.js à la version stable
+- npm install -g n
+- n stable # ou n 22.9.0 pour une version spécifique de Node.js
+# Vérifiez que Node.js et npm sont à jour
+- node -v
+- npm -v
+# Installer la dernière version de npm
+- npm install -g npm@latest
+# Installer les dépendances
+- npm install
+
+# Job de build de l'application
+build_application:
+  stage: build
+  script:
+  - ng build --prod
+  artifacts:
+    paths:
+    - dist/olympic-games-starter # L'artefact contenant le code compilé
+  only:
+  - main
+  - branches
+
+# Job de test de l'application
+test_application:
+  stage: test
+  script:
+  - npm run test -- --watch=false --browsers=ChromeHeadless # Exécution des tests avec ChromeHeadless
+  only:
+  - main
+  - branches
+  artifacts:
+    reports:
+      junit: report.xml # Les résultats des tests seront visibles dans GitLab sous forme de rapport JUnit
+
+# Job pour empaqueter l'application dans un fichier tar.gz
+package_application:
+  stage: package
+  script:
+  - npm run build # Génère la version de production de l'application
+  - tar -czvf olympic-games-starter-0.1.3.tgz dist/olympic-games-starter # Crée un fichier tar.gz
+  artifacts:
+    paths:
+    - olympic-games-starter-0.1.3.tgz # Artefact contenant le paquet empaqueté
+  only:
+  - main
+  - branches
+
+# Job pour publier l'application dans la GitLab Package Registry
+publish_application:
+  stage: publish
+  script:
+  - npm publish --access public # Publie le paquet dans la GitLab Package Registry
+  only:
+  - main # Ce job est exécuté uniquement sur la branche main
+  variables:
+    GITLAB_PROJECT_ID: "67291204" # ID de votre projet GitLab
+    GITLAB_TOKEN: "$CI_JOB_TOKEN" # Utilisation du token GitLab CI pour l'authentification
+  environment:
+    name: production # Environnement de production pour la publication
